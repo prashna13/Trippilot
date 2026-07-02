@@ -1,11 +1,17 @@
 from google.adk.tools import FunctionTool
 from google.adk.tools.tool_context import ToolContext
 
+_MEMORIES_KEY = "user:_memories"
+
 
 def remember_preference(key: str, value: str, tool_context: ToolContext) -> str:
-    """Stores a user preference (e.g. preferred_airline, hotel_chain) in user-scoped memory."""
+    """Stores a user preference in state and appends to the memory list."""
     tool_context.state[f"user:{key}"] = value
-    tool_context.add_memory(f"User preference: {key} = {value}")
+    memories: list = tool_context.state.get(_MEMORIES_KEY, [])
+    entry = f"User preference: {key} = {value}"
+    if entry not in memories:
+        memories.append(entry)
+        tool_context.state[_MEMORIES_KEY] = memories
     return f"Saved preference: {key} = {value}"
 
 
@@ -17,16 +23,14 @@ def recall_preference(key: str, tool_context: ToolContext) -> str:
     return f"No preference found for '{key}'."
 
 
-async def search_user_memories(query: str, tool_context: ToolContext) -> str:
-    """Searches across all user memories (previous trips, preferences) using a keyword query."""
-    results = await tool_context.search_memory(query=query)
-    if not results.memories:
+def search_user_memories(query: str, tool_context: ToolContext) -> str:
+    """Searches across saved memory entries in state using a keyword query."""
+    memories: list = tool_context.state.get(_MEMORIES_KEY, [])
+    query_lower = query.lower()
+    matches = [m for m in memories if query_lower in m.lower()]
+    if not matches:
         return f"No memories found matching '{query}'."
-    lines = []
-    for m in results.memories:
-        if m.content and m.content.parts:
-            lines.append(f"- {m.author}: {m.content.parts[0].text}")
-    return "Memories found:\n" + "\n".join(lines)
+    return "Memories found:\n" + "\n".join(f"- {m}" for m in matches)
 
 
 remember_tool = FunctionTool(func=remember_preference)

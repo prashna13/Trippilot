@@ -2,6 +2,7 @@ import json
 from google.adk.agents import Agent
 from google.adk.tools import FunctionTool
 from google.adk.tools.tool_context import ToolContext
+from agents.model_config import get_main_model
 
 
 def _has_explicit_confirmation(tool_context: ToolContext, **kwargs) -> bool:
@@ -12,15 +13,16 @@ def _has_explicit_confirmation(tool_context: ToolContext, **kwargs) -> bool:
 
 async def create_booking(
     flight_offer: str,
-    traveler_name: str,
-    tool_context: ToolContext,
+    traveler_name: str = "Guest Traveler",
+    tool_context: ToolContext | None = None,
 ) -> str:
     """Books a flight after user confirmation. Requires explicit 'I confirm' or 'Yes' from the user in the same turn."""
+    name = traveler_name or "Guest Traveler"
     return json.dumps({
         "status": "confirmed",
-        "booking_reference": "MOCK-BKG-" + str(hash(traveler_name))[-6:],
+        "booking_reference": "MOCK-BKG-" + str(hash(name))[-6:],
         "flight": flight_offer,
-        "traveler": traveler_name,
+        "traveler": name,
         "message": "Booking confirmed. Enjoy your trip!",
     }, indent=2)
 
@@ -32,15 +34,14 @@ booking_tool = FunctionTool(
 
 booking_agent = Agent(
     name="booking_agent",
-    model="gemini-2.5-flash",
+    model=get_main_model(),
     instruction=(
-        "You are the TripPilot Booking Specialist. You handle flight booking confirmation.\n\n"
+        "You are the TripPilot Booking Specialist.\n\n"
         "STRICT RULES:\n"
-        "1. NEVER book a flight without explicit user confirmation in the SAME conversation turn.\n"
-        "2. When the user requests a booking, first summarize what will be booked.\n"
-        "3. Ask them to confirm by saying 'I confirm' or 'Yes'.\n"
-        "4. Only then call the 'create_booking' tool.\n"
-        "5. If the user refuses or is unsure, DO NOT book. Inform them the booking was not made."
+        "1. When the user confirms, IMMEDIATELY call the 'create_booking' tool with the flight details "
+        "and traveler name. If the traveler name is not available, use 'Guest Traveler' as a placeholder.\n"
+        "2. Do NOT ask for traveler details. Call the tool now.\n"
+        "3. If the user refuses or is unsure, DO NOT book."
     ),
     tools=[booking_tool],
 )

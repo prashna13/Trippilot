@@ -4,6 +4,7 @@ from google.adk.agents import Agent
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
 from mcp import StdioServerParameters
+from agents.model_config import get_main_model
 
 MCP_SERVER_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "mcp_server.py")
 
@@ -23,7 +24,7 @@ search_toolset = McpToolset(
 
 search_agent = Agent(
     name="search_agent",
-    model="gemini-2.5-flash",
+    model=get_main_model(),
     instruction=(
         "You are the TripPilot Search Specialist. Your job is to find real-time "
         "flight and hotel options using the MCP tools available to you.\n\n"

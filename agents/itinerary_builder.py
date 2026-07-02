@@ -1,9 +1,9 @@
 import json
 from typing import Any
-from google.genai import types
 from google.adk.tools import FunctionTool
 from google.adk.tools.tool_context import ToolContext
-from google.adk.memory.memory_entry import MemoryEntry
+
+_MEMORIES_KEY = "user:_memories"
 
 
 async def build_itinerary(
@@ -15,8 +15,10 @@ async def build_itinerary(
     tool_context: ToolContext | None = None,
 ) -> str:
     """Assembles a structured trip itinerary from destination, dates, budget, and optional flight/hotel results. Saves the brief to session state."""
-    flights = flights or []
-    hotels = hotels or []
+    if isinstance(flights, str) or not isinstance(flights, list):
+        flights = []
+    if isinstance(hotels, str) or not isinstance(hotels, list):
+        hotels = []
 
     brief = {
         "destination": destination,
@@ -27,8 +29,8 @@ async def build_itinerary(
         "recommendation": "",
     }
 
-    total_flight_cost = sum(f.get("price", 0) for f in flights)
-    total_hotel_cost = sum(h.get("price_per_night", 0) for h in hotels)
+    total_flight_cost = sum(f.get("price", 0) for f in flights if isinstance(f, dict))
+    total_hotel_cost = sum(h.get("price_per_night", 0) for h in hotels if isinstance(h, dict))
     brief["recommendation"] = f"Total flight cost: ${total_flight_cost}, hotel from ${total_hotel_cost}/night."
 
     brief_json = json.dumps(brief, indent=2)
@@ -38,13 +40,11 @@ async def build_itinerary(
         tool_context.state["app:flights"] = flights
         tool_context.state["app:hotels"] = hotels
 
-        await tool_context.add_memory(
-            memories=[MemoryEntry(
-                content=types.Content(
-                    parts=[types.Part(text=f"User planned trip to {destination} on {dates} with budget {budget}")]
-                )
-            )]
-        )
+        memories: list = tool_context.state.get(_MEMORIES_KEY, [])
+        entry = f"User planned trip to {destination} on {dates} with budget {budget}"
+        if entry not in memories:
+            memories.append(entry)
+            tool_context.state[_MEMORIES_KEY] = memories
 
     return brief_json
 
